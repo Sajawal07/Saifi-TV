@@ -17,7 +17,6 @@ dependencies:
   # Firebase
 
   # YouTube Player
-  youtube_player_flutter: ^9.1.1
 
   # Audio
   just_audio: ^0.9.40
@@ -74,6 +73,7 @@ dependencies:
   permission_handler: ^12.0.3
   workmanager: ^0.7.0
   timezone: ^0.10.1
+  webview_flutter: ^4.13.0
 
 dev_dependencies:
   flutter_test:
@@ -91,8 +91,14 @@ flutter_launcher_icons:
 
 flutter_native_splash:
   color: "#163D29"
+  image: assets/images/native_splash.png
+  android: true
+  ios: false
   android_12:
     color: "#163D29"
+    # Removes the default white icon plate behind the logo on Android 12+
+    icon_background_color: "#163D29"
+    image: assets/images/native_splash.png
 
 flutter:
   uses-material-design: true

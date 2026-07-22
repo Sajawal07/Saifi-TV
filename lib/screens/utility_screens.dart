@@ -11,6 +11,7 @@ import '../core/constants/app_colors.dart';
 import '../core/constants/app_text_styles.dart';
 import '../models/app_models.dart';
 import '../services/api_services.dart';
+import '../services/notification_service.dart';
 import '../widgets/common_widgets.dart';
 
 // ── Prayer Times Screen ───────────────────────────────────────────────────────
@@ -51,6 +52,9 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen> {
         _locationError = data.locationError;
         _loading = false;
       });
+    }
+    if (data.times != null) {
+      await NotificationService.schedulePrayerReminders(data.times!);
     }
   }
 
@@ -234,135 +238,6 @@ class _PrayerTimesScreenState extends State<PrayerTimesScreen> {
                 ],
               ),
             ),
-    );
-  }
-}
-
-// ── Islamic Calendar Screen ───────────────────────────────────────────────────
-class IslamicCalendarScreen extends StatefulWidget {
-  const IslamicCalendarScreen({super.key});
-
-  @override
-  State<IslamicCalendarScreen> createState() => _IslamicCalendarScreenState();
-}
-
-class _IslamicCalendarScreenState extends State<IslamicCalendarScreen> {
-  late HijriCalendar _hijri;
-
-  @override
-  void initState() {
-    super.initState();
-    _hijri = HijriCalendar.now();
-  }
-
-  static const Map<int, String> _islamicMonths = {
-    1: 'Muharram', 2: 'Safar', 3: "Rabi' al-Awwal",
-    4: "Rabi' al-Thani", 5: "Jumada al-Awwal", 6: "Jumada al-Thani",
-    7: 'Rajab', 8: "Sha'ban", 9: 'Ramadan',
-    10: 'Shawwal', 11: "Dhul-Qa'da", 12: "Dhul-Hijja",
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Islamic Calendar'),
-        backgroundColor: AppColors.backgroundDark,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Current Hijri date
-            GlassCard(
-              child: Column(
-                children: [
-                  Text(
-                    '${_hijri.hDay}',
-                    style: AppTextStyles.displayLarge.copyWith(
-                      color: AppColors.gold,
-                      fontSize: 72,
-                    ),
-                  ),
-                  Text(
-                    _islamicMonths[_hijri.hMonth] ?? _hijri.longMonthName,
-                    style: AppTextStyles.headingLarge,
-                  ),
-                  Text(
-                    '${_hijri.hYear} AH',
-                    style: AppTextStyles.goldText,
-                  ),
-                  const SizedBox(height: 12),
-                  const GoldDivider(),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Gregorian: ${intl.DateFormat('MMMM d, y').format(DateTime.now())}',
-                    style: AppTextStyles.bodyMedium,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            SectionHeader(title: 'Islamic Months'),
-            const SizedBox(height: 12),
-
-            // Months grid
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: 2.0,
-              ),
-              itemCount: 12,
-              itemBuilder: (ctx, i) {
-                final month = i + 1;
-                final isCurrentMonth = month == _hijri.hMonth;
-                return Container(
-                  decoration: BoxDecoration(
-                    gradient: isCurrentMonth
-                        ? AppColors.goldGradient
-                        : AppColors.cardGradient,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isCurrentMonth
-                          ? AppColors.gold
-                          : AppColors.border.withOpacity(0.3),
-                    ),
-                  ),
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '$month.',
-                        style: isCurrentMonth
-                            ? AppTextStyles.button.copyWith(fontSize: 12)
-                            : AppTextStyles.bodySmall,
-                      ),
-                      Text(
-                        _islamicMonths[month] ?? '',
-                        style: isCurrentMonth
-                            ? AppTextStyles.button.copyWith(fontSize: 13)
-                            : AppTextStyles.bodyMedium.copyWith(
-                                color: AppColors.textPrimary),
-                        textAlign: TextAlign.center,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 30),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -640,7 +515,7 @@ class _HadithShareCard extends StatelessWidget {
             // Background image
             Positioned.fill(
               child: Image.asset(
-                'assets/images/hadith_card_bg.png',
+                'assets/images/hadith_card_bg.jpg',
                 fit: BoxFit.cover,
               ),
             ),

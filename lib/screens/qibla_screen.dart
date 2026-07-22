@@ -109,76 +109,97 @@ class _QiblaScreenState extends State<QiblaScreen> {
                     return const TasbehLoader(size: 100);
                   }
                   final direction = snapshot.data!;
-                  
-                  // direction.direction = current device heading (degrees from North)
-                  // direction.qiblah   = absolute Qibla bearing (degrees from North)
-                  // To show compass: rotate the compass face by -heading so North stays up
-                  // Then place the Qibla marker at qiblah angle from top
-                  final double headingRad = -(direction.direction * (math.pi / 180));
-                  final double qiblahAngleDiff = direction.qiblah - direction.direction;
-                  bool isAligned = (qiblahAngleDiff.abs() % 360) < 3.0 || 
-                                   (qiblahAngleDiff.abs() % 360) > 357.0;
+
+                  // qiblah ≈ 0 when phone top is facing Qibla
+                  double normalize(double deg) {
+                    var a = deg % 360;
+                    if (a < 0) a += 360;
+                    return a;
+                  }
+
+                  final relativeAngle = normalize(direction.qiblah);
+                  final needleRad = relativeAngle * (math.pi / 180);
+                  // Shortest turn to Qibla: 0° = facing Qibla, max 180°
+                  final degreesOff = relativeAngle > 180
+                      ? 360 - relativeAngle
+                      : relativeAngle;
+                  final isAligned = degreesOff < 5.0;
+                  final needleColor =
+                      isAligned ? AppColors.success : AppColors.gold;
 
                   return Column(
                     children: [
-                      // Compass
                       SizedBox(
                         width: 280,
                         height: 280,
                         child: Stack(
                           alignment: Alignment.center,
                           children: [
-                            // Compass ring rotates with device heading
-                            Transform.rotate(
-                              angle: headingRad,
-                              child: Container(
-                                width: 280,
-                                height: 280,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: AppColors.gold.withValues(alpha: 0.4),
-                                    width: 2,
-                                  ),
-                                  gradient: const RadialGradient(
-                                    colors: [AppColors.card, AppColors.backgroundDark],
-                                  ),
-                                  image: const DecorationImage(
-                                    image: AssetImage('assets/images/kaaba.png'),
-                                    fit: BoxFit.cover,
-                                    colorFilter: ColorFilter.mode(
-                                      Colors.black54,
-                                      BlendMode.darken,
-                                    ),
+                            // Fixed Kaaba background — does not rotate
+                            Container(
+                              width: 280,
+                              height: 280,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: needleColor.withValues(alpha: 0.5),
+                                  width: isAligned ? 3 : 2,
+                                ),
+                                gradient: const RadialGradient(
+                                  colors: [
+                                    AppColors.card,
+                                    AppColors.backgroundDark,
+                                  ],
+                                ),
+                                image: const DecorationImage(
+                                  image: AssetImage('assets/images/kaaba.png'),
+                                  fit: BoxFit.cover,
+                                  colorFilter: ColorFilter.mode(
+                                    Colors.black54,
+                                    BlendMode.darken,
                                   ),
                                 ),
                               ),
                             ),
-                            // Needle: fixed, always pointing to Qibla (top = Qibla direction)
-                            // We rotate needle by the qiblah bearing relative to North
+                            // Needle only rotates toward Qibla
                             Transform.rotate(
-                              angle: direction.qiblah * (math.pi / 180),
+                              angle: needleRad,
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  Icon(
+                                    Icons.mosque_rounded,
+                                    color: needleColor,
+                                    size: 26,
+                                  ),
+                                  const SizedBox(height: 4),
                                   Container(
                                     width: 8,
-                                    height: 100,
+                                    height: 90,
                                     decoration: BoxDecoration(
-                                      gradient: isAligned
-                                          ? const LinearGradient(colors: [Colors.greenAccent, Colors.green])
-                                          : AppColors.goldGradient,
+                                      color: needleColor,
                                       borderRadius: const BorderRadius.only(
                                         topLeft: Radius.circular(4),
                                         topRight: Radius.circular(4),
                                       ),
+                                      boxShadow: isAligned
+                                          ? [
+                                              BoxShadow(
+                                                color: AppColors.success
+                                                    .withValues(alpha: 0.55),
+                                                blurRadius: 12,
+                                                spreadRadius: 1,
+                                              ),
+                                            ]
+                                          : null,
                                     ),
                                   ),
                                   Container(
                                     width: 8,
-                                    height: 100,
+                                    height: 90,
                                     decoration: BoxDecoration(
-                                      color: AppColors.textMuted.withValues(alpha: 0.4),
+                                      color: AppColors.textMuted
+                                          .withValues(alpha: 0.4),
                                       borderRadius: const BorderRadius.only(
                                         bottomLeft: Radius.circular(4),
                                         bottomRight: Radius.circular(4),
@@ -188,22 +209,17 @@ class _QiblaScreenState extends State<QiblaScreen> {
                                 ],
                               ),
                             ),
-                            // Center dot
+                            // Center pivot
                             Container(
                               width: 20,
                               height: 20,
-                              decoration: const BoxDecoration(
-                                gradient: AppColors.goldGradient,
+                              decoration: BoxDecoration(
+                                color: needleColor,
                                 shape: BoxShape.circle,
-                              ),
-                            ),
-                            // Kaaba icon at top of needle
-                            Positioned(
-                              top: 16,
-                              child: Transform.rotate(
-                                angle: direction.qiblah * (math.pi / 180),
-                                child: const Icon(Icons.mosque_rounded,
-                                    color: AppColors.gold, size: 28),
+                                border: Border.all(
+                                  color: AppColors.backgroundDark,
+                                  width: 2,
+                                ),
                               ),
                             ),
                           ],
@@ -211,17 +227,21 @@ class _QiblaScreenState extends State<QiblaScreen> {
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        '${direction.qiblah.toStringAsFixed(1)}°',
+                        '${degreesOff.toStringAsFixed(0)}°',
                         style: AppTextStyles.displayMedium.copyWith(
-                          color: isAligned ? Colors.greenAccent : AppColors.gold,
+                          color: needleColor,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        isAligned ? '✅ Facing Qibla!' : 'Qibla Bearing from North',
+                        isAligned
+                            ? 'Facing Qibla!'
+                            : 'Qibla se angle',
                         style: AppTextStyles.bodyMedium.copyWith(
-                          color: isAligned ? Colors.greenAccent : AppColors.textPrimary,
+                          color: isAligned
+                              ? AppColors.success
+                              : AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -229,12 +249,14 @@ class _QiblaScreenState extends State<QiblaScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.explore_rounded,
-                                color: AppColors.gold, size: 20),
+                            Icon(Icons.explore_rounded,
+                                color: needleColor, size: 20),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Rotate your phone until the golden arrow points upward toward the Kaaba icon.',
+                                isAligned
+                                    ? 'Perfect! Aap Qibla ki taraf face kar rahe hain.'
+                                    : 'Phone ghumaein jab tak needle upar Kaaba ki taraf na aa jaye.',
                                 style: AppTextStyles.bodyMedium,
                                 textAlign: TextAlign.center,
                               ),

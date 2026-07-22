@@ -1,11 +1,15 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../core/config/app_config.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_text_styles.dart';
 import '../core/providers/app_providers.dart';
 import '../models/app_models.dart';
 import '../services/api_services.dart';
+import '../services/notification_service.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/disclaimer_dialog.dart';
 import 'naats_bayanat_screen.dart';
@@ -548,6 +552,10 @@ class _SearchScreenState extends State<SearchScreen> {
 class PrivacyScreen extends StatelessWidget {
   const PrivacyScreen({super.key});
 
+  Future<void> _open(String url) async {
+    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -571,12 +579,56 @@ class PrivacyScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(
                     'Saifi TV respects your privacy. We collect only necessary data to improve your experience:\n\n'
-                    '• Location: Used only for Prayer Times and Qibla compass. Not stored or shared.\n\n'
+                    '• Location: Used only for Prayer Times and Qibla compass. Not stored remotely or shared beyond necessary API calculations.\n\n'
                     '• Local Storage: Favorites, Zikr counts, and settings are stored only on your device.\n\n'
-                    '• Analytics: Anonymous usage data via Firebase Analytics.\n\n'
-                    '• Ads: Google AdMob shows ads based on general interests. Ads never appear during audio/video playback or Zikr counting.\n\n'
-                    '• Content: All YouTube content is embedded with explicit permission from channel owners. We do not download, rehost, or strip audio from any content.',
+                    '• Content: Videos are listed via YouTube API Services and played with YouTube’s official embed player (YouTube controls and branding). We do not download, rehost, or strip audio.\n\n'
+                    'By using this application to watch videos, you agree to be bound by the YouTube Terms of Service.',
                     style: AppTextStyles.bodyMedium.copyWith(height: 1.7),
+                  ),
+                  const SizedBox(height: 16),
+                  Text.rich(
+                    TextSpan(
+                      style: AppTextStyles.bodyMedium.copyWith(height: 1.6),
+                      children: [
+                        const TextSpan(text: 'Full policy (hosted): '),
+                        TextSpan(
+                          text: 'Open Privacy Policy',
+                          style: const TextStyle(
+                            color: AppColors.gold,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () => _open(AppUrls.privacyPolicy),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text.rich(
+                    TextSpan(
+                      style: AppTextStyles.bodyMedium.copyWith(height: 1.6),
+                      children: [
+                        TextSpan(
+                          text: 'YouTube Terms of Service',
+                          style: const TextStyle(
+                            color: AppColors.gold,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () => _open(AppUrls.youtubeTerms),
+                        ),
+                        const TextSpan(text: '  ·  '),
+                        TextSpan(
+                          text: 'Google Privacy Policy',
+                          style: const TextStyle(
+                            color: AppColors.gold,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () => _open(AppUrls.googlePrivacy),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -589,7 +641,7 @@ class PrivacyScreen extends StatelessWidget {
                   Text('Content Takedown', style: AppTextStyles.headingSmall),
                   const SizedBox(height: 8),
                   Text(
-                    'If you believe any content on Saifi TV violates your rights, please contact us at: support@saifitv.app\n\nWe will review and remove content within 48 hours.',
+                    'If you believe any content on Saifi TV violates your rights, please contact us at: ${AppUrls.supportEmail}\n\nWe will review and remove content within 48 hours.',
                     style: AppTextStyles.bodyMedium.copyWith(height: 1.6),
                   ),
                 ],
@@ -774,10 +826,305 @@ class AboutScreen extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            GlassCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Terms of Service', style: AppTextStyles.headingSmall),
+                  const SizedBox(height: 12),
+                  const GoldDivider(),
+                  const SizedBox(height: 12),
+                  Text.rich(
+                    TextSpan(
+                      style: AppTextStyles.bodyMedium.copyWith(height: 1.6),
+                      children: [
+                        const TextSpan(
+                          text:
+                              'This app uses YouTube API Services. By using our video player, you agree to be bound by the ',
+                        ),
+                        TextSpan(
+                          text: 'YouTube Terms of Service',
+                          style: const TextStyle(
+                            color: AppColors.gold,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () => launchUrl(
+                                  Uri.parse(AppUrls.youtubeTerms),
+                                  mode: LaunchMode.externalApplication,
+                                ),
+                        ),
+                        const TextSpan(text: ' and '),
+                        TextSpan(
+                          text: 'Google Privacy Policy',
+                          style: const TextStyle(
+                            color: AppColors.gold,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () => launchUrl(
+                                  Uri.parse(AppUrls.googlePrivacy),
+                                  mode: LaunchMode.externalApplication,
+                                ),
+                        ),
+                        const TextSpan(text: '.'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 30),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Notification Settings Screen ──────────────────────────────────────────────
+class NotificationSettingsScreen extends StatefulWidget {
+  const NotificationSettingsScreen({super.key});
+
+  @override
+  State<NotificationSettingsScreen> createState() =>
+      _NotificationSettingsScreenState();
+}
+
+class _NotificationSettingsScreenState
+    extends State<NotificationSettingsScreen> {
+  bool _loading = true;
+  int _minutesBefore = 15;
+  bool _jummah = true;
+  bool _hadith = true;
+  bool _zikr = true;
+  bool _newVideo = true;
+  final Map<String, bool> _prayers = {
+    for (final k in NotificationService.prayerKeys) k: true,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    _minutesBefore = await NotificationService.getMinutesBefore();
+    _jummah = await NotificationService.isEnabled(NotificationService.prefJummah);
+    _hadith = await NotificationService.isEnabled(NotificationService.prefHadith);
+    _zikr = await NotificationService.isEnabled(NotificationService.prefZikr);
+    _newVideo =
+        await NotificationService.isEnabled(NotificationService.prefNewVideo);
+    for (final key in NotificationService.prayerKeys) {
+      _prayers[key] = await NotificationService.isPrayerEnabled(key);
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _refreshSchedules() async {
+    await NotificationService.refreshAllSchedules();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Notifications'),
+        backgroundColor: AppColors.backgroundDark,
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                GlassCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Prayer Reminders', style: AppTextStyles.headingSmall),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Namaz se kitni der pehle alert chahiye?',
+                        style: AppTextStyles.bodySmall,
+                      ),
+                      const SizedBox(height: 12),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [5, 10, 15, 20, 30].map((m) {
+                            final selected = _minutesBefore == m;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text('${m}m'),
+                                selected: selected,
+                                selectedColor: AppColors.gold.withOpacity(0.3),
+                                labelStyle: TextStyle(
+                                  color: selected
+                                      ? AppColors.gold
+                                      : AppColors.textPrimary,
+                                  fontWeight: selected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                                onSelected: (_) async {
+                                  setState(() => _minutesBefore = m);
+                                  await NotificationService.setMinutesBefore(m);
+                                  await _refreshSchedules();
+                                },
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const GoldDivider(),
+                      ...NotificationService.prayerKeys.map((key) {
+                        return SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            NotificationService.prayerLabels[key]!,
+                            style: AppTextStyles.bodyMedium,
+                          ),
+                          value: _prayers[key] ?? true,
+                          activeColor: AppColors.gold,
+                          onChanged: (v) async {
+                            setState(() => _prayers[key] = v);
+                            await NotificationService.setPrayerEnabled(key, v);
+                            await _refreshSchedules();
+                          },
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                GlassCard(
+                  child: Column(
+                    children: [
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('Jummah Reminder',
+                            style: AppTextStyles.bodyMedium),
+                        subtitle: Text(
+                          'Friday — Surah Kahf parhne ki yaad',
+                          style: AppTextStyles.bodySmall,
+                        ),
+                        value: _jummah,
+                        activeColor: AppColors.gold,
+                        onChanged: (v) async {
+                          setState(() => _jummah = v);
+                          await NotificationService.setEnabled(
+                              NotificationService.prefJummah, v);
+                          await NotificationService.scheduleJummahReminder();
+                        },
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('Daily Hadith',
+                            style: AppTextStyles.bodyMedium),
+                        subtitle: Text(
+                          'Subah 7 AM — Aaj ka Hadith ready hai',
+                          style: AppTextStyles.bodySmall,
+                        ),
+                        value: _hadith,
+                        activeColor: AppColors.gold,
+                        onChanged: (v) async {
+                          setState(() => _hadith = v);
+                          await NotificationService.setEnabled(
+                              NotificationService.prefHadith, v);
+                          await NotificationService.scheduleHadithReminder();
+                        },
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('Zikr Reminder',
+                            style: AppTextStyles.bodyMedium),
+                        subtitle: Text(
+                          'Shaam ko agar daily target incomplete ho',
+                          style: AppTextStyles.bodySmall,
+                        ),
+                        value: _zikr,
+                        activeColor: AppColors.gold,
+                        onChanged: (v) async {
+                          setState(() => _zikr = v);
+                          await NotificationService.setEnabled(
+                              NotificationService.prefZikr, v);
+                        },
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('New Video Alerts',
+                            style: AppTextStyles.bodyMedium),
+                        subtitle: Text(
+                          'Har 60 min approved channels check',
+                          style: AppTextStyles.bodySmall,
+                        ),
+                        value: _newVideo,
+                        activeColor: AppColors.gold,
+                        onChanged: (v) async {
+                          setState(() => _newVideo = v);
+                          await NotificationService.setEnabled(
+                              NotificationService.prefNewVideo, v);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                GlassCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Manual Check', style: AppTextStyles.headingSmall),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Abhi new videos check karein (normally har 60 minutes automatic).',
+                        style: AppTextStyles.bodySmall,
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Checking for new videos...'),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                            await NotificationService.checkForNewVideos();
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Check complete. New video mile to notification aayegi.',
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.cloud_download_rounded,
+                              color: AppColors.gold),
+                          label: Text(
+                            'Check New Videos Now',
+                            style: AppTextStyles.bodyMedium
+                                .copyWith(color: AppColors.gold),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.gold),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
     );
   }
 }

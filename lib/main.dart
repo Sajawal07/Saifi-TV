@@ -11,9 +11,11 @@ import 'screens/naats_bayanat_screen.dart';
 import 'screens/quran_screen.dart';
 import 'screens/zikr_screen.dart';
 import 'screens/utility_screens.dart';
+import 'screens/islamic_calendar_screen.dart';
 import 'screens/qibla_screen.dart';
 import 'screens/misc_screens.dart';
 import 'screens/splash_screen.dart';
+import 'services/notification_service.dart';
 import 'widgets/common_widgets.dart';
 
 void main() async {
@@ -35,6 +37,13 @@ void main() async {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
+
+  // Local notifications + background video polling
+  try {
+    await NotificationService.initialize();
+  } catch (e) {
+    debugPrint('Notification init failed: $e');
+  }
 
   runApp(
     MultiProvider(
@@ -91,6 +100,7 @@ class _MainNavigatorState extends State<MainNavigator> {
         case 8: screen = const HadithScreen(); break;
         case 9: screen = FavoritesScreen(onNavTap: _onNavTap); break;
         case 10: screen = const SearchScreen(); break;
+        case 11: screen = const NotificationSettingsScreen(); break;
         case 12: screen = const PrivacyScreen(); break;
         case 13: screen = const AboutScreen(); break;
         default: return;
@@ -123,6 +133,8 @@ class _MainNavigatorState extends State<MainNavigator> {
         return FavoritesScreen(onNavTap: _onNavTap);
       case 10:
         return const SearchScreen();
+      case 11:
+        return const NotificationSettingsScreen();
       case 12:
         return const PrivacyScreen();
       case 13:

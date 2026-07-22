@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../core/config/app_config.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_text_styles.dart';
 import '../core/constants/api_constants.dart';
@@ -8,6 +9,7 @@ import '../core/providers/app_providers.dart';
 import '../models/app_models.dart';
 import '../services/api_services.dart';
 import '../widgets/common_widgets.dart';
+import '../widgets/youtube_embed_player.dart';
 
 // ── Naats List Screen ─────────────────────────────────────────────────────────
 class NaatsScreen extends StatefulWidget {
@@ -21,12 +23,17 @@ class _NaatsScreenState extends State<NaatsScreen> {
   List<VideoItem> _videos = [];
   bool _loading = true;
   String _selectedCategory = 'All';
+  bool _searchOpen = false;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
 
   final List<String> _categories = [
     'All',
+    'Naat',
+    'Mehfil',
+    'Urs',
     'Ramzan Special',
     'Milad',
-    'Mehfil',
     'Hamd',
     'Salaam',
     'Manqabat',
@@ -38,9 +45,16 @@ class _NaatsScreenState extends State<NaatsScreen> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
-    final videos = await YouTubeService.fetchChannelVideos(
-      channelId: ApiConstants.approvedNaatChannels.first['channelId']!,
+    final videos = await YouTubeService.fetchApprovedChannels(
+      channels: ApiConstants.approvedNaatChannels,
+      contentFilter: 'naat',
     );
     if (mounted) {
       setState(() {
@@ -48,6 +62,23 @@ class _NaatsScreenState extends State<NaatsScreen> {
         _loading = false;
       });
     }
+  }
+
+  List<VideoItem> get _filteredVideos {
+    final q = _searchQuery.trim().toLowerCase();
+    // While searching, look across all naats (ignore category chips)
+    var list = (q.isNotEmpty || _selectedCategory == 'All')
+        ? _videos
+        : _videos.where((v) => v.category == _selectedCategory).toList();
+    if (q.isEmpty) return list;
+    return list
+        .where(
+          (v) =>
+              v.title.toLowerCase().contains(q) ||
+              v.channelName.toLowerCase().contains(q) ||
+              v.category.toLowerCase().contains(q),
+        )
+        .toList();
   }
 
   @override
@@ -58,32 +89,123 @@ class _NaatsScreenState extends State<NaatsScreen> {
         title: const Text('Naats'),
         backgroundColor: AppColors.backgroundDark,
         actions: [
-          IconButton(icon: const Icon(Icons.search_rounded), onPressed: () {}),
+          IconButton(
+            tooltip: _searchOpen ? 'Close search' : 'Search',
+            icon: Icon(
+              _searchOpen ? Icons.close_rounded : Icons.search_rounded,
+              color: AppColors.gold,
+            ),
+            onPressed: () {
+              setState(() {
+                if (_searchOpen) {
+                  _searchOpen = false;
+                  _searchQuery = '';
+                  _searchController.clear();
+                } else {
+                  _searchOpen = true;
+                }
+              });
+            },
+          ),
         ],
       ),
       body: Column(
         children: [
-          // Categories
-          SizedBox(
-            height: 52,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: _categories.length,
-              itemBuilder:
-                  (_, i) => Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: CategoryChip(
-                      label: _categories[i],
-                      isSelected: _selectedCategory == _categories[i],
-                      onTap:
-                          () => setState(
-                            () => _selectedCategory = _categories[i],
+          if (_searchOpen)
+            Container(
+              width: double.infinity,
+              color: AppColors.backgroundDark,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: AppTextStyles.bodyLarge.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+                cursorColor: AppColors.gold,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: 'Naat, channel, ya category search...',
+                  hintStyle: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    color: AppColors.gold,
+                  ),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.clear_rounded,
+                            color: AppColors.textMuted,
                           ),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: AppColors.card,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: AppColors.gold.withOpacity(0.35),
                     ),
                   ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: AppColors.gold.withOpacity(0.35),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.gold),
+                  ),
+                ),
+                onChanged: (v) => setState(() => _searchQuery = v),
+              ),
             ),
-          ),
+          // Categories (hidden while actively searching for clearer results)
+          if (!_searchOpen || _searchQuery.isEmpty)
+            SizedBox(
+              height: 52,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                itemCount: _categories.length,
+                itemBuilder:
+                    (_, i) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: CategoryChip(
+                        label: _categories[i],
+                        isSelected: _selectedCategory == _categories[i],
+                        onTap:
+                            () => setState(
+                              () => _selectedCategory = _categories[i],
+                            ),
+                      ),
+                    ),
+              ),
+            ),
+          if (_searchQuery.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${_filteredVideos.length} result${_filteredVideos.length == 1 ? '' : 's'}',
+                  style: AppTextStyles.bodySmall.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ),
+            ),
           // Video Grid
           Expanded(
             child:
@@ -91,21 +213,20 @@ class _NaatsScreenState extends State<NaatsScreen> {
                     ? const Center(child: TasbehLoader())
                     : Builder(
                       builder: (ctx) {
-                        final filteredVideos =
-                            _selectedCategory == 'All'
-                                ? _videos
-                                : _videos
-                                    .where(
-                                      (v) => v.category == _selectedCategory,
-                                    )
-                                    .toList();
+                        final filteredVideos = _filteredVideos;
 
                         if (filteredVideos.isEmpty) {
                           return Center(
-                            child: Text(
-                              'No videos found in this category',
-                              style: AppTextStyles.bodyMedium.copyWith(
-                                color: AppColors.textMuted,
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text(
+                                _searchQuery.isNotEmpty
+                                    ? 'No naats found for "$_searchQuery"'
+                                    : 'No videos found in this category',
+                                style: AppTextStyles.bodyMedium.copyWith(
+                                  color: AppColors.textMuted,
+                                ),
+                                textAlign: TextAlign.center,
                               ),
                             ),
                           );
@@ -178,8 +299,9 @@ class _BayanatScreenState extends State<BayanatScreen> {
   }
 
   Future<void> _load() async {
-    final videos = await YouTubeService.fetchChannelVideos(
-      channelId: ApiConstants.approvedBayanatChannels.first['channelId']!,
+    final videos = await YouTubeService.fetchApprovedChannels(
+      channels: ApiConstants.approvedBayanatChannels,
+      contentFilter: 'bayan',
     );
     if (mounted) {
       setState(() {
@@ -200,6 +322,15 @@ class _BayanatScreenState extends State<BayanatScreen> {
       body:
           _loading
               ? const Center(child: TasbehLoader())
+              : _videos.isEmpty
+              ? Center(
+                  child: Text(
+                    'No bayanat found',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                )
               : ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: _videos.length,
@@ -248,7 +379,6 @@ class VideoPlayerScreen extends StatefulWidget {
 
 class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     with SingleTickerProviderStateMixin {
-  late YoutubePlayerController _controller;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
@@ -320,14 +450,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
   @override
   void initState() {
     super.initState();
-    _controller = YoutubePlayerController(
-      initialVideoId: widget.video.youtubeVideoId,
-      flags: const YoutubePlayerFlags(
-        autoPlay: true,
-        mute: false,
-        isLive: false,
-      ),
-    );
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 130),
@@ -339,7 +461,6 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
 
   @override
   void dispose() {
-    _controller.dispose();
     _pulseController.dispose();
     super.dispose();
   }
@@ -351,84 +472,95 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
 
   @override
   Widget build(BuildContext context) {
-    return YoutubePlayerBuilder(
-      player: YoutubePlayer(
-        controller: _controller,
-        showVideoProgressIndicator: true,
-        progressColors: const ProgressBarColors(
-          playedColor: AppColors.gold,
-          handleColor: AppColors.goldLight,
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text(
+          widget.video.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
+        backgroundColor: AppColors.backgroundDark,
       ),
-      builder: (ctx, player) {
-        return Scaffold(
-          backgroundColor: AppColors.background,
-          appBar: AppBar(
-            title: Text(
-              widget.video.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            backgroundColor: AppColors.backgroundDark,
-          ),
-          body: Column(
-            children: [
-              // Player
-              player,
-              // Info
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      body: Column(
+        children: [
+          // Official YouTube embed (native controls + branding)
+          YoutubeEmbedPlayer(videoId: widget.video.youtubeVideoId),
+          // Info
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.video.title,
+                    style: AppTextStyles.headingSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
                     children: [
-                      Text(
-                        widget.video.title,
-                        style: AppTextStyles.headingSmall,
+                      const Icon(
+                        Icons.verified,
+                        size: 14,
+                        color: AppColors.gold,
                       ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.verified,
-                            size: 14,
-                            color: AppColors.gold,
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          widget.video.channelName,
+                          style: AppTextStyles.goldText.copyWith(
+                            fontSize: 14,
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            widget.video.channelName,
-                            style: AppTextStyles.goldText.copyWith(
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      const GoldDivider(),
-                      const SizedBox(height: 12),
-                      // Attribution note
-                      GlassCard(
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.info_outline_rounded,
-                              color: AppColors.gold,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'Content is embedded from YouTube with permission from the channel owner. All rights belong to the original creator.',
-                                style: AppTextStyles.bodySmall,
-                              ),
-                            ),
-                          ],
                         ),
                       ),
-                      const SizedBox(height: 24),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  watchOnYouTubeButton(widget.video.youtubeVideoId),
+                  const SizedBox(height: 16),
+                  const GoldDivider(),
+                  const SizedBox(height: 12),
+                  // Attribution note
+                  GlassCard(
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.info_outline_rounded,
+                          color: AppColors.gold,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Video YouTube ke official player se chal rahi hai. '
+                            'Channel owner ki ijazat se list ki gayi hai. '
+                            'YouTube Terms of Service apply hote hain.',
+                            style: AppTextStyles.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () => launchUrl(
+                      Uri.parse(AppUrls.youtubeTerms),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                    child: Text(
+                      'YouTube Terms of Service',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: AppColors.gold,
+                        decoration: TextDecoration.underline,
+                        decorationColor: AppColors.gold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
 
-                      // ── Zikr Companion ─────────────────────────────────
-                      SectionHeader(title: 'Zikr Companion'),
+                  // ── Zikr Companion ─────────────────────────────────
+                  SectionHeader(title: 'Zikr Companion'),
                       const SizedBox(height: 4),
                       Text(
                         'Zikr chunein aur tap kar ke count barhaein',

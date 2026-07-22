@@ -1,20 +1,32 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import '../core/config/app_config.dart';
 import '../core/constants/api_constants.dart';
 import '../models/app_models.dart';
 
 // YouTube Service - fetches videos from approved channels
 class YouTubeService {
+  /// Android-restricted API keys require these headers on every request.
+  static Map<String, String> get _androidApiHeaders => {
+        'X-Android-Package': ApiConstants.androidPackageName,
+        'X-Android-Cert': kReleaseMode
+            ? ApiConstants.releaseCertSha1
+            : ApiConstants.debugCertSha1,
+      };
+
   /// Fetches ALL videos from a channel using pagination (nextPageToken).
   /// [maxResults] = per-page count (max 50 allowed by YouTube API).
   /// [hardLimit] = absolute max videos to fetch (safety cap, 0 = no limit).
+  /// [contentFilter] = optional: 'bayan' | 'naat' to auto-split mixed channels.
   static Future<List<VideoItem>> fetchChannelVideos({
     required String channelId,
     int maxResults = 50,
-    int hardLimit = 50,
+    int hardLimit = 150,
+    String? contentFilter,
   }) async {
     final List<VideoItem> allVideos = [];
     String? nextPageToken;
@@ -22,22 +34,29 @@ class YouTubeService {
 
     try {
       do {
+        final playlistId = channelId.replaceFirst('UC', 'UU');
         final uri = Uri.parse(
-          '${ApiConstants.youtubeApiBase}/search'
-          '?key=${ApiConstants.youtubeApiKey}'
-          '&channelId=$channelId'
+          '${ApiConstants.youtubeApiBase}/playlistItems'
+          '?key=${AppConfig.youtubeApiKey}'
+          '&playlistId=$playlistId'
           '&part=snippet'
-          '&type=video'
-          '&order=date'
           '&maxResults=$maxResults'
           '${nextPageToken != null ? '&pageToken=$nextPageToken' : ''}',
         );
 
-        final response = await http.get(uri);
-        if (response.statusCode != 200) break;
+        print('🔍 [YouTube] Fetching: $uri');
+        final response = await http.get(uri, headers: _androidApiHeaders);
+        print('🔍 [YouTube] Status: ${response.statusCode}');
+        print('🔍 [YouTube] Body: ${response.body.substring(0, response.body.length.clamp(0, 500))}');
+
+        if (response.statusCode != 200) {
+          print('❌ [YouTube] Error response: ${response.body}');
+          break;
+        }
 
         final data = jsonDecode(response.body);
         final items = data['items'] as List? ?? [];
+        print('✅ [YouTube] Items fetched: ${items.length}');
         allVideos.addAll(items.map((e) => VideoItem.fromJson(e)));
 
         nextPageToken = data['nextPageToken'] as String?;
@@ -48,13 +67,72 @@ class YouTubeService {
 
       } while (nextPageToken != null);
 
-      if (allVideos.isNotEmpty) return allVideos;
+      if (allVideos.isEmpty) return allVideos;
+
+      if (contentFilter == 'bayan') {
+        return allVideos.where((v) => v.isBayan).toList();
+      }
+      if (contentFilter == 'naat') {
+        return allVideos.where((v) => !v.isBayan).toList();
+      }
+      return allVideos;
     } catch (e) {
+      print('❌ [YouTube] Exception: $e');
       // If we got some pages before the error, return what we have
-      if (fetchedAtLeastOnePage && allVideos.isNotEmpty) return allVideos;
+      if (fetchedAtLeastOnePage && allVideos.isNotEmpty) {
+        if (contentFilter == 'bayan') {
+          return allVideos.where((v) => v.isBayan).toList();
+        }
+        if (contentFilter == 'naat') {
+          return allVideos.where((v) => !v.isBayan).toList();
+        }
+        return allVideos;
+      }
     }
 
     return allVideos;
+  }
+
+  /// Fetches videos from multiple channels in parallel, merges & sorts newest first.
+  static Future<List<VideoItem>> fetchApprovedChannels({
+    required List<Map<String, String>> channels,
+    int maxResults = 50,
+    int hardLimitPerChannel = 100,
+    String? contentFilter,
+  }) async {
+    if (channels.isEmpty) return [];
+
+    final results = await Future.wait(
+      channels.map(
+        (ch) => fetchChannelVideos(
+          channelId: ch['channelId']!,
+          maxResults: maxResults,
+          hardLimit: hardLimitPerChannel,
+          contentFilter: contentFilter,
+        ),
+      ),
+    );
+
+    final merged = <VideoItem>[];
+    final seenIds = <String>{};
+    for (final list in results) {
+      for (final v in list) {
+        if (v.youtubeVideoId.isEmpty || seenIds.contains(v.youtubeVideoId)) {
+          continue;
+        }
+        seenIds.add(v.youtubeVideoId);
+        merged.add(v);
+      }
+    }
+
+    merged.sort((a, b) {
+      final aDate = a.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = b.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+
+    print('✅ [YouTube] Merged ${merged.length} videos from ${channels.length} channels');
+    return merged;
   }
 
   static List<VideoItem> _mockVideos(String channelId) {

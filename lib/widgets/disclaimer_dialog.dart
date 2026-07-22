@@ -1,4 +1,7 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../core/config/app_config.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_text_styles.dart';
 
@@ -8,25 +11,39 @@ const String kDisclaimerText =
     'ذمہ دار سیفی ٹی وی خود ہو گا، مرکزی آستانہ عالیہ فقیر آباد اس کا ذمہ دار نہیں '
     'ہوگا۔ اس ایپ کا مقصد سیفیوں کو ایک ہی جگہ پر سارا مواد دینا ہے۔ تعاون کا شکریہ۔';
 
-/// Shows the first-launch disclaimer dialog.
-/// Cannot be dismissed by tapping outside — user MUST tap the button.
-Future<void> showDisclaimerDialog(BuildContext context) {
-  return showDialog<void>(
+/// First-launch legal gate: ownership notice + Privacy + YouTube ToS accept.
+/// Returns `true` only when the user accepts and continues.
+Future<bool> showDisclaimerDialog(BuildContext context) async {
+  final result = await showDialog<bool>(
     context: context,
-    barrierDismissible: false, // user must press button
-    builder: (_) => const _DisclaimerDialog(),
+    barrierDismissible: false,
+    builder: (_) => const _LegalConsentDialog(),
   );
+  return result == true;
 }
 
-class _DisclaimerDialog extends StatelessWidget {
-  const _DisclaimerDialog();
+Future<void> _openUrl(String url) async {
+  final uri = Uri.parse(url);
+  await launchUrl(uri, mode: LaunchMode.externalApplication);
+}
+
+class _LegalConsentDialog extends StatefulWidget {
+  const _LegalConsentDialog();
+
+  @override
+  State<_LegalConsentDialog> createState() => _LegalConsentDialogState();
+}
+
+class _LegalConsentDialogState extends State<_LegalConsentDialog> {
+  bool _accepted = false;
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
       child: Container(
+        constraints: const BoxConstraints(maxHeight: 640),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
@@ -38,26 +55,13 @@ class _DisclaimerDialog extends StatelessWidget {
             color: AppColors.gold.withOpacity(0.6),
             width: 1.5,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.gold.withOpacity(0.15),
-              blurRadius: 30,
-              spreadRadius: 2,
-            ),
-            BoxShadow(
-              color: Colors.black.withOpacity(0.4),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Header ──────────────────────────────────────────────────
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
@@ -68,83 +72,129 @@ class _DisclaimerDialog extends StatelessWidget {
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(20),
                 ),
-                border: Border(
-                  bottom: BorderSide(
-                    color: AppColors.gold.withOpacity(0.4),
-                    width: 1,
-                  ),
-                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.info_rounded,
-                    color: AppColors.gold,
-                    size: 22,
-                  ),
+                  const Icon(Icons.gavel_rounded, color: AppColors.gold, size: 22),
                   const SizedBox(width: 10),
                   Text(
-                    'اہم اطلاع',
+                    'Terms & Privacy',
                     style: AppTextStyles.headingMedium.copyWith(
                       color: AppColors.gold,
-                      fontSize: 20,
-                      fontFamily: 'Amiri',
+                      fontSize: 18,
                     ),
-                    textDirection: TextDirection.rtl,
                   ),
                 ],
               ),
             ),
-
-            // ── Body ────────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-              child: Directionality(
-                textDirection: TextDirection.rtl,
-                child: Text(
-                  kDisclaimerText,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    height: 1.85,
-                    fontSize: 15,
-                    color: const Color(0xFFE8E8E8),
-                    fontFamily: 'Amiri',
-                  ),
-                  textAlign: TextAlign.justify,
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: Text(
+                        kDisclaimerText,
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          height: 1.85,
+                          fontSize: 14,
+                          color: const Color(0xFFE8E8E8),
+                          fontFamily: 'Amiri',
+                        ),
+                        textAlign: TextAlign.justify,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Divider(color: AppColors.gold.withOpacity(0.3)),
+                    const SizedBox(height: 8),
+                    Text(
+                      'YouTube & Privacy',
+                      style: AppTextStyles.headingSmall.copyWith(
+                        color: AppColors.gold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text.rich(
+                      TextSpan(
+                        style: AppTextStyles.bodySmall.copyWith(height: 1.55),
+                        children: [
+                          const TextSpan(
+                            text:
+                                'This app uses YouTube API Services to list and play videos. By continuing you agree to our ',
+                          ),
+                          TextSpan(
+                            text: 'Privacy Policy',
+                            style: const TextStyle(
+                              color: AppColors.gold,
+                              decoration: TextDecoration.underline,
+                            ),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () => _openUrl(AppUrls.privacyPolicy),
+                          ),
+                          const TextSpan(text: ', the '),
+                          TextSpan(
+                            text: 'YouTube Terms of Service',
+                            style: const TextStyle(
+                              color: AppColors.gold,
+                              decoration: TextDecoration.underline,
+                            ),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () => _openUrl(AppUrls.youtubeTerms),
+                          ),
+                          const TextSpan(text: ', and '),
+                          TextSpan(
+                            text: 'Google Privacy Policy',
+                            style: const TextStyle(
+                              color: AppColors.gold,
+                              decoration: TextDecoration.underline,
+                            ),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () => _openUrl(AppUrls.googlePrivacy),
+                          ),
+                          const TextSpan(text: '.'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    CheckboxListTile(
+                      value: _accepted,
+                      onChanged: (v) => setState(() => _accepted = v ?? false),
+                      activeColor: AppColors.gold,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: Text(
+                        'I have read and agree to the Privacy Policy and YouTube Terms of Service.',
+                        style: AppTextStyles.bodySmall,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-
-            // ── Divider ─────────────────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Divider(color: AppColors.gold.withOpacity(0.3), height: 24),
-            ),
-
-            // ── Button ──────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: _accepted
+                      ? () => Navigator.of(context).pop(true)
+                      : null,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     backgroundColor: AppColors.gold,
+                    disabledBackgroundColor: AppColors.gold.withOpacity(0.25),
                     foregroundColor: Colors.white,
+                    disabledForegroundColor: Colors.white54,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    elevation: 4,
-                    shadowColor: AppColors.gold.withOpacity(0.4),
                   ),
                   child: Text(
-                    'سمجھ گیا',
-                    style: AppTextStyles.button.copyWith(
-                      fontSize: 16,
-                      fontFamily: 'Amiri',
-                      letterSpacing: 0.5,
-                    ),
+                    'Continue',
+                    style: AppTextStyles.button.copyWith(fontSize: 16),
                   ),
                 ),
               ),

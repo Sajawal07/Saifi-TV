@@ -20,33 +20,82 @@ class VideoItem {
     this.description,
   });
 
+  /// True when this video belongs in the Bayanat section (not Naats).
+  bool get isBayan => category == 'Bayan';
+
+  /// Auto-categorize from title/description so mixed channels split correctly.
+  static String categorizeFromText(String title, String description) {
+    final s = '${title.toLowerCase()} ${description.toLowerCase()}';
+
+    // Urs events
+    if (RegExp(r'\burs\b').hasMatch(s) || s.contains('urs mubarak')) {
+      return 'Urs';
+    }
+
+    // Mehfil (often includes naats / zikr)
+    if (s.contains('mehfil')) return 'Mehfil';
+
+    // Explicit naat-family keywords first
+    if (s.contains('manqabat')) return 'Manqabat';
+    if (s.contains('salaam') || RegExp(r'\bsalam\b').hasMatch(s)) {
+      return 'Salaam';
+    }
+    if (RegExp(r'\bhamd\b').hasMatch(s)) return 'Hamd';
+    if (s.contains('naat')) {
+      if (s.contains('ramzan') || s.contains('ramadan')) return 'Ramzan Special';
+      if (s.contains('milad') || s.contains('rabi ul awal')) return 'Milad';
+      return 'Naat';
+    }
+
+    // Bayan / lecture indicators (SAIFI CHANNEL style titles)
+    if (s.contains('bayan') ||
+        s.contains('byan') ||
+        s.contains('dars') ||
+        s.contains('fazail') ||
+        s.contains('islahi') ||
+        s.contains('interview') ||
+        s.contains('ahmiyat') ||
+        s.contains('anjam') ||
+        s.contains('huqooq') ||
+        s.contains('molana') ||
+        s.contains('maulana') ||
+        s.contains('allama') ||
+        (s.contains('mufti') && !s.contains('naat'))) {
+      return 'Bayan';
+    }
+
+    // Religious talks without "naat" in the title
+    if (s.contains('ramzan') ||
+        s.contains('ramadan') ||
+        s.contains('roza') ||
+        s.contains('hajj') ||
+        s.contains('namaz') ||
+        s.contains('quran') ||
+        s.contains('hadees') ||
+        s.contains('hadeea') ||
+        s.contains('shareeat') ||
+        s.contains('shariyat') ||
+        s.contains('tareeqat') ||
+        s.contains('tassawuf')) {
+      return 'Bayan';
+    }
+
+    return 'Naat';
+  }
+
   factory VideoItem.fromJson(Map<String, dynamic> json) {
     final snippet = json['snippet'] ?? {};
     final thumbnails = snippet['thumbnails'] ?? {};
     final high = thumbnails['high'] ?? thumbnails['medium'] ?? thumbnails['default'] ?? {};
-    final videoId = json['id'] is Map ? json['id']['videoId'] : json['id'];
+    final resourceId = snippet['resourceId'] ?? {};
+    final videoId = resourceId['videoId'] ?? (json['id'] is Map ? json['id']['videoId'] : json['id']);
     
     final title = snippet['title']?.toString() ?? '';
     final description = snippet['description']?.toString() ?? '';
-    
-    // Auto-Categorization logic based on title and description
-    String category = 'Naat';
-    final searchStr = '${title.toLowerCase()} ${description.toLowerCase()}';
-    
-    if (searchStr.contains('ramzan') || searchStr.contains('ramadan')) {
-      category = 'Ramzan Special';
-    } else if (searchStr.contains('milad') || searchStr.contains('rabi ul awal') || searchStr.contains('nabi')) {
-      category = 'Milad';
-    } else if (searchStr.contains('mehfil') || searchStr.contains('live')) {
-      category = 'Mehfil';
-    } else if (searchStr.contains('hamd') || searchStr.contains('allah')) {
-      category = 'Hamd';
-    } else if (searchStr.contains('salaam') || searchStr.contains('salam')) {
-      category = 'Salaam';
-    } else if (searchStr.contains('manqabat') || searchStr.contains('ali') || searchStr.contains('hussain')) {
-      category = 'Manqabat';
-    } else if (json['category'] != null) {
-      category = json['category'];
+
+    String category = categorizeFromText(title, description);
+    if (json['category'] != null && category == 'Naat') {
+      category = json['category'].toString();
     }
 
     return VideoItem(

@@ -207,100 +207,106 @@ class VideoCard extends StatelessWidget {
           ],
         ),
         clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Thumbnail
-            Stack(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final boundedHeight = constraints.maxHeight.isFinite;
+            final info = Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    title,
+                    style: AppTextStyles.bodyLarge.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.verified, size: 12, color: AppColors.gold),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          channelName,
+                          style: AppTextStyles.goldSmall,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: boundedHeight ? MainAxisSize.max : MainAxisSize.min,
               children: [
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: Image.network(
-                    thumbnailUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: AppColors.cardDark,
-                      child: const Icon(
-                        Icons.play_circle_outline,
-                        size: 48,
-                        color: AppColors.gold,
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned.fill(
-                  child: Center(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.4),
-                        shape: BoxShape.circle,
-                      ),
-                      padding: const EdgeInsets.all(10),
-                      child: const Icon(
-                        Icons.play_arrow_rounded,
-                        size: 32,
-                        color: AppColors.white,
-                      ),
-                    ),
-                  ),
-                ),
-                if (onFavorite != null)
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: GestureDetector(
-                      onTap: onFavorite,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
-                          shape: BoxShape.circle,
-                        ),
-                        padding: const EdgeInsets.all(6),
-                        child: Icon(
-                          isFavorite ? Icons.favorite : Icons.favorite_border,
-                          size: 16,
-                          color: isFavorite ? Colors.red : AppColors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            // Info
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 8), // slightly reduced padding to prevent squishing
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween, // push title up, channel down
+                Stack(
                   children: [
-                    Text(
-                      title,
-                      style: AppTextStyles.bodyLarge.copyWith(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Row(
-                      children: [
-                        const Icon(Icons.verified, size: 12, color: AppColors.gold),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            channelName,
-                            style: AppTextStyles.goldSmall,
-                            overflow: TextOverflow.ellipsis,
+                    AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Image.network(
+                        thumbnailUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: AppColors.cardDark,
+                          child: const Icon(
+                            Icons.play_circle_outline,
+                            size: 48,
+                            color: AppColors.gold,
                           ),
                         ),
-                      ],
+                      ),
                     ),
+                    Positioned.fill(
+                      child: Center(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.4),
+                            shape: BoxShape.circle,
+                          ),
+                          padding: const EdgeInsets.all(10),
+                          child: const Icon(
+                            Icons.play_arrow_rounded,
+                            size: 32,
+                            color: AppColors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (onFavorite != null)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: GestureDetector(
+                          onTap: onFavorite,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.5),
+                              shape: BoxShape.circle,
+                            ),
+                            padding: const EdgeInsets.all(6),
+                            child: Icon(
+                              isFavorite ? Icons.favorite : Icons.favorite_border,
+                              size: 16,
+                              color: isFavorite ? Colors.red : AppColors.white,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
-              ),
-            ),
-          ],
+                if (boundedHeight) Expanded(child: info) else info,
+              ],
+            );
+          },
         ),
       ),
     );
@@ -437,7 +443,7 @@ class AppDrawer extends StatelessWidget {
       {'icon': Icons.format_quote_rounded, 'label': 'Daily Hadith'},
       {'icon': Icons.favorite_rounded, 'label': 'Favorites'},
       {'icon': Icons.search_rounded, 'label': 'Search'},
-      {'icon': Icons.store_rounded, 'label': 'Shop (Coming Soon)'},
+      {'icon': Icons.notifications_active_rounded, 'label': 'Notifications'},
       {'icon': Icons.info_outline_rounded, 'label': 'Privacy Policy'},
       {'icon': Icons.help_outline_rounded, 'label': 'About & Credits'},
     ];

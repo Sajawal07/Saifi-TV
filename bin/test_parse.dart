@@ -2,15 +2,21 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../lib/models/app_models.dart';
 
+/// Dev helper — never hardcode API keys:
+///   dart run bin/test_parse.dart --define=YOUTUBE_API_KEY=your_key
 void main() async {
+  final apiKey = String.fromEnvironment('YOUTUBE_API_KEY', defaultValue: '');
+  if (apiKey.isEmpty) {
+    print('Set YOUTUBE_API_KEY via --define. Aborting.');
+    return;
+  }
+
   final channelId = 'UCv0j01aAHX9HkHPtRMxPlHg';
-  final apiKey = 'AIzaSyBa49iwUgJo_7yMy4emZi9TVLlePj_m-lw';
   final maxResults = 50;
   final hardLimit = 300;
 
   final List<VideoItem> allVideos = [];
   String? nextPageToken;
-  bool fetchedAtLeastOnePage = false;
 
   try {
     do {
@@ -36,14 +42,12 @@ void main() async {
       final data = jsonDecode(response.body);
       final items = data['items'] as List? ?? [];
       print('Found ${items.length} items in this page.');
-      
+
       allVideos.addAll(items.map((e) => VideoItem.fromJson(e)));
 
       nextPageToken = data['nextPageToken'] as String?;
-      fetchedAtLeastOnePage = true;
 
       if (hardLimit > 0 && allVideos.length >= hardLimit) break;
-
     } while (nextPageToken != null);
 
     print('Total videos fetched: ${allVideos.length}');

@@ -6,8 +6,10 @@ import '../core/constants/app_text_styles.dart';
 import '../core/constants/api_constants.dart';
 import '../models/app_models.dart';
 import '../services/api_services.dart';
+import '../services/notification_service.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/disclaimer_dialog.dart';
+import 'misc_screens.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(int) onNavTap;
@@ -34,20 +36,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _checkFirstLaunch() async {
     final prefs = await SharedPreferences.getInstance();
-    final bool hasSeenDisclaimer =
-        prefs.getBool('hasSeenDisclaimer') ?? false;
-    if (!hasSeenDisclaimer && mounted) {
-      // Wait a moment so the screen is fully rendered before showing dialog
+    // New key so users who only saw the old disclaimer also accept YouTube ToS
+    final bool hasAcceptedLegal =
+        prefs.getBool('hasAcceptedLegalTerms') ?? false;
+    if (!hasAcceptedLegal && mounted) {
       await Future.delayed(const Duration(milliseconds: 600));
       if (!mounted) return;
-      await showDisclaimerDialog(context);
-      await prefs.setBool('hasSeenDisclaimer', true);
+      final accepted = await showDisclaimerDialog(context);
+      if (accepted) {
+        await prefs.setBool('hasAcceptedLegalTerms', true);
+        await prefs.setBool('hasSeenDisclaimer', true);
+      }
     }
   }
 
   Future<void> _loadData({bool forceRefresh = false}) async {
-    final naats = await YouTubeService.fetchChannelVideos(
-        channelId: ApiConstants.approvedNaatChannels.first['channelId']!);
+    final naats = await YouTubeService.fetchApprovedChannels(
+      channels: ApiConstants.approvedNaatChannels,
+      contentFilter: 'naat',
+      hardLimitPerChannel: 30,
+    );
     final hadith = await HadithService.fetchDailyHadith();
     final prayerData = await PrayerTimesService.fetchPrayerData(forceRefresh: forceRefresh);
 
@@ -61,6 +69,12 @@ class _HomeScreenState extends State<HomeScreen> {
         _loading = false;
       });
     }
+
+    if (prayerData.times != null) {
+      await NotificationService.schedulePrayerReminders(prayerData.times!);
+    }
+    // Evening zikr nudge when app is opened near reminder hour
+    await NotificationService.checkZikrReminder();
   }
 
   Future<void> _requestLocationPermission() async {
@@ -108,7 +122,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: const EdgeInsets.only(right: 16.0),
                   child: Center(
                     child: InkWell(
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const NotificationSettingsScreen(),
+                          ),
+                        );
+                      },
                       borderRadius: BorderRadius.circular(20),
                       child: Container(
                         padding: const EdgeInsets.all(8),
@@ -372,7 +393,12 @@ class _HomeScreenState extends State<HomeScreen> {
       {'icon': Icons.music_note_rounded, 'label': 'Naats', 'index': 1, 'color': const Color(0xFF2E7D32)},
       {'icon': Icons.record_voice_over_rounded, 'label': 'Bayanat', 'index': 2, 'color': const Color(0xFF6A1B9A)},
       {'icon': Icons.menu_book_rounded, 'label': 'Quran', 'index': 3, 'color': const Color(0xFF0277BD)},
-      {'icon': Icons.track_changes_rounded, 'label': 'Zikr', 'index': 4, 'color': const Color(0xFFC9A84E)},
+      {
+        'image': 'assets/images/zikr.png',
+        'label': 'Zikr',
+        'index': 4,
+        'color': const Color(0xFFC9A84E),
+      },
       {'icon': Icons.explore_rounded, 'label': 'Qibla', 'index': 6, 'color': const Color(0xFFAD1457)},
       {'icon': Icons.calendar_month_rounded, 'label': 'Calendar', 'index': 7, 'color': const Color(0xFF00695C)},
       {'icon': Icons.format_quote_rounded, 'label': 'Hadith', 'index': 8, 'color': const Color(0xFF4527A0)},
@@ -391,6 +417,7 @@ class _HomeScreenState extends State<HomeScreen> {
       itemCount: items.length,
       itemBuilder: (ctx, i) {
         final item = items[i];
+        final imagePath = item['image'] as String?;
         return GestureDetector(
           onTap: () => widget.onNavTap(item['index'] as int),
           child: Container(
@@ -410,8 +437,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: Colors.white.withOpacity(0.08),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(item['icon'] as IconData,
-                      color: Colors.white, size: 26),
+                  clipBehavior: Clip.antiAlias,
+                  child: imagePath != null
+                      ? Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Image.asset(imagePath, fit: BoxFit.contain),
+                        )
+                      : Icon(
+                          item['icon'] as IconData,
+                          color: Colors.white,
+                          size: 26,
+                        ),
                 ),
                 const SizedBox(height: 6),
                 Text(
