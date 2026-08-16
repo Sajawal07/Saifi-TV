@@ -43,4 +43,4 @@ We may update this Privacy Policy from time to time. The latest version will be 
 
 ### 5. Contact Us
 
-support@saifitv.app
+saifitv.support@gmail.com

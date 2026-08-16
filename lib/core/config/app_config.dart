@@ -9,7 +9,7 @@ class AppUrls {
 
   static const String youtubeTerms = 'https://www.youtube.com/t/terms';
   static const String googlePrivacy = 'https://policies.google.com/privacy';
-  static const String supportEmail = 'support@saifitv.app';
+  static const String supportEmail = 'saifitv.support@gmail.com';
 }
 
 /// Build-time / local secrets.
